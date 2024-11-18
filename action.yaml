@@ -1,0 +1,47 @@
+name: Regsitry Manager
+description: A GitHub Action for comparing versioning files between an extension repository and the extensions registry, and pushing updates to the registry as needed.
+author: Paperback Community <paperback-community@proton.me>
+
+inputs:
+  github-token:
+    description: The GitHub token used for updating the paperback-community/extensions repository, should have content write rights.
+    required: true
+  repository:
+    description: The repository which the action will get the extensions from.
+    required: true
+  branch:
+    description: The branch in the repository which the action will get the extensions from.
+    required: true
+  ## Not exposing the following inputs at this moment:
+  #commit-message:
+  #  description: 'The commit message that will be used for the commit to the paperback-community/extensions repository, default "Registry update".'
+  #  default: Registry update
+  #commit-author-name:
+  #  description: 'The author name which will be used to make the commit to the paperback-community/extensions repository, default: "github-actions[bot]".'
+  #  default: github-actions[bot]
+  #commit-author-email:
+  #  description: 'The author email which will be used to make the commit to the paperback-community/extensions repository, default: "github-actions[bot]@users.noreply.github.com".'
+  #  default: github-actions[bot]@users.noreply.github.com
+  #log-level:
+  #  description: 'The level at which the tool will log, default: "INFO"'
+  #  default: INFO
+
+runs:
+  using: composite
+  steps:
+    - name: Set Shell Environment Variables
+      shell: bash
+      run: |
+        echo "GITHUB_TOKEN=${{ inputs.github-token }}" >> $GITHUB_ENV
+        echo "REPOSITORY=${{ inputs.repository }}" >> $GITHUB_ENV
+        echo "BRANCH=${{ inputs.branch }}" >> $GITHUB_ENV
+
+    - name: Download Tool
+      shell: bash
+      run: |
+        gh release download --repo 'paperback-community/registry-manager' --pattern 'registry-manager-x86_64-unknown-linux-gnu.tar.gz'
+        tar -xzf 'registry-manager-x86_64-unknown-linux-gnu.tar.gz'
+
+    - name: Run Action
+      shell: bash
+      run: ./registry-manager-x86_64-unknown-linux-gnu/registry-manager
