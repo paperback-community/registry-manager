@@ -1,0 +1,25 @@
+[package]
+name = "registry-manager"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+dotenv = ["dep:dotenvy"]
+
+[dependencies]
+# tracing = "0.1"
+# tracing-subscriber = "0.3"
+
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+base64 = "0.22"
+
+node-semver = "2.1"
+
+chrono = "0.4.39"
+
+dotenvy = { version = "0.15", optional = true }
+
