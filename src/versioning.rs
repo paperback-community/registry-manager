@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use base64::prelude::*;
 use chrono::Utc;
 use node_semver::Version;
@@ -89,7 +91,7 @@ pub fn parse_versioning(response_content: &String) -> Result<Versioning, u8> {
 pub fn update_registry_versioning(
     registry_versioning: &mut Versioning,
     repository_versioning: &Versioning,
-) -> Result<Vec<(String, bool)>, u8> {
+) -> Result<Vec<(String, bool, HashMap<String, String>)>, u8> {
     let mut updated_extensions = vec![];
 
     if registry_versioning
@@ -131,7 +133,7 @@ pub fn update_registry_versioning(
                     .sources
                     .insert(index, repository_extension.clone());
 
-                updated_extensions.push((repository_extension.id.clone(), new));
+                updated_extensions.push((repository_extension.id.clone(), new, HashMap::new()));
             }
 
             break;
@@ -142,7 +144,7 @@ pub fn update_registry_versioning(
                 .sources
                 .push(repository_extension.clone());
 
-            updated_extensions.push((repository_extension.id.clone(), new));
+            updated_extensions.push((repository_extension.id.clone(), new, HashMap::new()));
         }
     }
 

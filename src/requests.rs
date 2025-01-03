@@ -1,8 +1,11 @@
+use std::{env, time::Duration};
+
 use reqwest::{
-    blocking::Client,
     header::{HeaderMap, HeaderValue},
+    Method, Request, Url,
 };
 use serde::{Deserialize, Serialize};
+use tower::{limit::RateLimit, util::ServiceFn};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -126,47 +129,74 @@ pub struct Links {
 //     pub verified_at: Option<String>,
 // }
 
-pub struct Requests {
-    client: Client,
+pub struct Requests<T> {
+    service: RateLimit<ServiceFn<T>>,
 }
 
-pub fn new() -> Requests {
-    Requests {
-        client: reqwest::blocking::Client::new(),
+pub fn new<T>() -> Result<Requests<T>, u8> {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "Accept",
+        HeaderValue::from_str("application/vnd.github+json").unwrap(),
+    );
+    headers.insert(
+        "X-GitHub-Api-Version",
+        HeaderValue::from_str("2022-11-28").unwrap(),
+    );
+    headers.insert(
+        "Authorization",
+        HeaderValue::from_str(
+            format!("Bearer {}", env::var("REGISTRY_MANAGER_PAT").unwrap()).as_str(),
+        )
+        .unwrap(),
+    );
+
+    match reqwest::Client::builder()
+        .user_agent("paperback-community/registry-manager")
+        .default_headers(headers)
+        .timeout(Duration::new(10, 0))
+        .build()
+    {
+        Ok(client) => {
+            let service = tower::ServiceBuilder::new()
+                .rate_limit(1, Duration::new(1, 0))
+                .service(tower::service_fn(move |req| client.execute(req)));
+
+            Ok(Requests { service })
+        }
+        Err(err) => {
+            println!(
+                "Something went wrong while creating the request client: {}",
+                &err
+            );
+            Err(0x1)
+        }
     }
 }
 
-impl Requests {
-    pub fn get_files(
+impl<T> Requests<T> {
+    #[tokio::main]
+    pub async fn get_files(
         &self,
         repository: &String,
         path: &String,
         branch: &String,
     ) -> Result<GetContent, u8> {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "Accept",
-            HeaderValue::from_str("application/vnd.github+json").unwrap(),
-        );
-        headers.insert(
-            "User-Agent",
-            HeaderValue::from_str("paperback-community/registry-manager").unwrap(),
-        );
-        headers.insert(
-            "X-GitHub-Api-Version",
-            HeaderValue::from_str("2022-11-28").unwrap(),
+        let request = Request::new(
+            Method::GET,
+            Url::parse(
+                format!(
+                    "https://api.github.com/repos/{}/contents/{}?ref={}",
+                    &repository, &path, &branch
+                )
+                .as_str(),
+            )
+            .unwrap(),
         );
 
-        let p_response = self
-            .client
-            .get(format!(
-                "https://api.github.com/repos/{}/contents/{}?ref={}",
-                &repository, &path, &branch
-            ))
-            .headers(headers)
-            .send();
+        let f_response = self.service.ready_and().await.call(request).await;
 
-        match p_response {
+        match f_response {
             Ok(raw_response) => {
                 if raw_response.status() != 200 {
                     eprintln!(
@@ -176,7 +206,7 @@ impl Requests {
                     return Err(0x1);
                 }
 
-                match raw_response.json::<GetContent>() {
+                match raw_response.json::<GetContent>().await {
                     Ok(response) => Ok(response),
                     Err(err) => {
                         eprintln!(
@@ -193,49 +223,4 @@ impl Requests {
             }
         }
     }
-
-    //// This method will not be used, instead blobs will be created
-    // pub fn put_file(&self, file: &String, pat: &String) -> Result<(), u8> {
-    //     let mut headers = HeaderMap::new();
-    //     headers.insert(
-    //         "Accept",
-    //         HeaderValue::from_str("application/vnd.github+json").unwrap(),
-    //     );
-    //     headers.insert(
-    //         "User-Agent",
-    //         HeaderValue::from_str("paperback-community/registry-manager").unwrap(),
-    //     );
-    //     headers.insert(
-    //         "X-GitHub-Api-Version",
-    //         HeaderValue::from_str("2022-11-28").unwrap(),
-    //     );
-    //     headers.insert(
-    //         "Authorization",
-    //         HeaderValue::from_str(format!("Bearer {}", pat).as_str()).unwrap(),
-    //     );
-
-    //     let p_response = self.client.put(format!("https://api.github.com/repos/paperback-community/extensions-test/contents/versioning.json"))
-    //         .headers(headers)
-    //         // TODO: Make struct and serialize it to json
-    //         .body("")
-    //         .send();
-
-    //     match p_response {
-    //         Ok(raw_response) => {
-    //             if raw_response.status() != 200 {
-    //                 eprintln!(
-    //                    "The response was undesired, status code: {}",
-    //                     &raw_response.status(),
-    //                 );
-    //                 return Err(0x1);
-    //             }
-
-    //             Ok(())
-    //         }
-    //         Err(err) => {
-    //             eprintln!("Something went wrong when making the request: {}", &err);
-    //             Err(0x1)
-    //         }
-    //     }
-    // }
 }
