@@ -28,34 +28,34 @@ pub struct GetContentDirectoryResponse {
     pub path: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct GetBranchResponse {
     pub commit: Commit,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Commit {
     pub sha: String,
     pub commit: CommitCommit,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct CommitCommit {
     pub tree: Tree,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Tree {
     pub sha: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Serialize)]
 struct CreateBlobRequestBody {
     content: String,
     encoding: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct CreateBlobResponse {
     pub sha: String,
 }
@@ -148,28 +148,27 @@ impl Requests {
         path: &String,
         branch: &String,
     ) -> Result<GetContentResponse, bool> {
-        let p_response = self
+        match self
             .client
             .get(format!(
                 "https://api.github.com/repos/{}/contents/{}?ref={}",
                 &repository, &path, &branch
             ))
-            .send();
-
-        match p_response {
+            .send()
+        {
             Ok(raw_response) => {
                 match raw_response.status() {
                     StatusCode::OK => {}
                     StatusCode::NOT_FOUND => {
                         error!("The requested files were not found");
-                        return Err(true);
+                        return Err(false);
                     }
                     _ => {
                         error!(
                             "The response was undesired, status code: {}",
                             &raw_response.status(),
                         );
-                        return Err(false);
+                        return Err(true);
                     }
                 }
 
@@ -180,13 +179,13 @@ impl Requests {
                             "Something went wrong while deserializing the response to JSON: {}",
                             &err
                         );
-                        Err(false)
+                        Err(true)
                     }
                 }
             }
             Err(err) => {
                 error!("Something went wrong while making the request: {}", &err);
-                Err(false)
+                Err(true)
             }
         }
     }
@@ -196,15 +195,14 @@ impl Requests {
         repository: &String,
         branch: &String,
     ) -> Result<GetBranchResponse, ()> {
-        let p_response = self
+        match self
             .client
             .get(format!(
                 "https://api.github.com/repos/{}/branches/{}",
                 &repository, &branch
             ))
-            .send();
-
-        match p_response {
+            .send()
+        {
             Ok(raw_response) => {
                 if raw_response.status() != 200 {
                     error!(
@@ -235,9 +233,7 @@ impl Requests {
     pub fn create_blob(&self, content: String, encoding: String) -> Result<CreateBlobResponse, ()> {
         let body = CreateBlobRequestBody { content, encoding };
 
-        let p_body_string = serde_json::to_string(&body);
-
-        let p_response = match p_body_string {
+        let p_response = match serde_json::to_string(&body) {
             Ok(body_string) => self
                 .client
                 .post("https://api.github.com/repos/paperback-community/extensions/git/blobs")
@@ -262,9 +258,7 @@ impl Requests {
                     return Err(());
                 }
 
-                let raw_value_response = raw_response.json::<serde_json::Value>().unwrap();
-
-                match serde_json::from_value::<CreateBlobResponse>(raw_value_response) {
+                match raw_response.json::<CreateBlobResponse>() {
                     Ok(response) => Ok(response),
                     Err(err) => {
                         error!(
@@ -307,9 +301,7 @@ impl Requests {
 
         let body = CreateTreeRequestBody { base_tree, tree };
 
-        let p_body_string = serde_json::to_string(&body);
-
-        let p_response = match p_body_string {
+        let p_response = match serde_json::to_string(&body) {
             Ok(body_string) => self
                 .client
                 .post("https://api.github.com/repos/paperback-community/extensions/git/trees")
@@ -334,9 +326,7 @@ impl Requests {
                     return Err(());
                 }
 
-                let raw_value_response = raw_response.json::<serde_json::Value>().unwrap();
-
-                match serde_json::from_value::<CreateTreeResponse>(raw_value_response) {
+                match raw_response.json::<CreateTreeResponse>() {
                     Ok(response) => Ok(response),
                     Err(err) => {
                         error!(
@@ -372,9 +362,7 @@ impl Requests {
             },
         };
 
-        let p_body_string = serde_json::to_string(&body);
-
-        let p_response = match p_body_string {
+        let p_response = match serde_json::to_string(&body) {
             Ok(body_string) => self
                 .client
                 .post("https://api.github.com/repos/paperback-community/extensions/git/commits")
@@ -399,9 +387,7 @@ impl Requests {
                     return Err(());
                 }
 
-                let raw_value_response = raw_response.json::<serde_json::Value>().unwrap();
-
-                match serde_json::from_value::<CreateCommitResponse>(raw_value_response) {
+                match raw_response.json::<CreateCommitResponse>() {
                     Ok(response) => Ok(response),
                     Err(err) => {
                         error!(
