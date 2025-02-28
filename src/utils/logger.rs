@@ -15,14 +15,13 @@ pub fn new() -> Result<(), ()> {
         )
         .try_init();
 
-    match subscriber {
-        Ok(()) => Ok(()),
-        Err(err) => {
-            eprintln!(
-                "Something went wrong while initialzing the logger: {}",
-                &err
-            );
-            Err(())
-        }
+    if let Err(err) = subscriber {
+        eprintln!(
+            "Something went wrong while initializing the logger: {}",
+            &err
+        );
+        return Err(());
     }
+
+    Ok(())
 }
