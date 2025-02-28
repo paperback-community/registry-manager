@@ -90,9 +90,16 @@ fn main() -> ExitCode {
     };
 
     info!("Updating the local copy of the registry versioning file");
-    let Ok(mut updated_extensions) = registry_versioning.update(&repository_versioning) else {
-        error!("Exiting the program");
-        return ExitCode::from(1);
+    let mut updated_extensions = match registry_versioning.update(&repository_versioning) {
+        Ok(updated_extensions) => updated_extensions,
+        Err(false) => {
+            info!("Exiting the program");
+            return ExitCode::from(0);
+        }
+        Err(true) => {
+            error!("Exiting the program");
+            return ExitCode::from(1);
+        }
     };
 
     info!(
