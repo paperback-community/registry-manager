@@ -145,7 +145,7 @@ impl Versioning {
                     .unwrap_or_else(|_| Version::parse("0.0.0").unwrap())
                     > registry_extension.version.parse::<Version>().unwrap()
                 {
-                    self.sources.insert(index, repository_extension.clone());
+                    self.sources[index] = repository_extension.clone();
 
                     updated_extensions.push((repository_extension.id.clone(), HashMap::new()));
                 }
