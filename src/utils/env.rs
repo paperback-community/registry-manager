@@ -7,16 +7,15 @@ use dotenvy;
 
 #[cfg(feature = "dotenv")]
 pub fn load_dotenv() -> Result<(), ()> {
-    match dotenvy::dotenv() {
-        Ok(_) => Ok(()),
-        Err(err) => {
-            eprintln!(
-                "An error occurred wile trying to load the .env file: {}",
-                &err
-            );
-            Err(())
-        }
+    if let Err(err) = dotenvy::dotenv() {
+        eprintln!(
+            "An error occurred wile trying to load the .env file: {}",
+            &err
+        );
+        return Err(());
     }
+
+    Ok(())
 }
 
 pub fn validate() -> Result<(), ()> {

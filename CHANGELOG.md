@@ -6,7 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes at this moment.
+### Miscellaneous
+- General code structure improvements (@Celarye)
 
 ## [v0.1.0] - 2025-02-24
 
