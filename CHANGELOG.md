@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 - Ensure a clean exit (exit code 0) when no extensions need updating, display a warning instead (@Celarye)
 
+### Bug fixes
+- Extension duplication (@Celarye)
+
 ### Miscellaneous
 - General code structure improvements (@Celarye)
 
