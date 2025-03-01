@@ -4,7 +4,7 @@ use base64::prelude::*;
 use chrono::Utc;
 use node_semver::Version;
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tracing::{error, warn};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -93,9 +93,7 @@ impl Versioning {
     }
 
     pub fn to_base64(&self) -> Result<String, ()> {
-        let p_versioning_string = serde_json::to_string(&self);
-
-        match p_versioning_string {
+        match serde_json::to_string(&self) {
             Ok(versioning_string) => Ok(BASE64_STANDARD.encode(&versioning_string)),
             Err(err) => {
                 error!(
@@ -107,7 +105,10 @@ impl Versioning {
         }
     }
 
-    pub fn update(&mut self, repository_versioning: &Versioning) -> Result<UpdatedExtensions, ()> {
+    pub fn update(
+        &mut self,
+        repository_versioning: &Versioning,
+    ) -> Result<UpdatedExtensions, bool> {
         let mut updated_extensions = vec![];
 
         if self
@@ -125,7 +126,7 @@ impl Versioning {
                 "The repository was build with an invalid @paperback/types version {}, expected version {} or higher",
                 repository_versioning.built_with.types, self.built_with.types
             );
-            return Err(());
+            return Err(true);
         }
 
         for repository_extension in repository_versioning.sources.iter() {
@@ -144,7 +145,7 @@ impl Versioning {
                     .unwrap_or_else(|_| Version::parse("0.0.0").unwrap())
                     > registry_extension.version.parse::<Version>().unwrap()
                 {
-                    self.sources.insert(index, repository_extension.clone());
+                    self.sources[index] = repository_extension.clone();
 
                     updated_extensions.push((repository_extension.id.clone(), HashMap::new()));
                 }
@@ -160,8 +161,8 @@ impl Versioning {
         }
 
         if updated_extensions.is_empty() {
-            error!("There are no extensions to update");
-            return Err(());
+            warn!("There are no extensions to update");
+            return Err(false);
         }
 
         self.build_time = Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
