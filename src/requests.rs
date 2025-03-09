@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, time::Duration};
+use std::{env, time::Duration};
 
 use reqwest::{
     StatusCode,
@@ -7,6 +7,9 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use tracing::error;
+
+use crate::versioning;
+use versioning::{UpdateTypes, UpdatedExtensions};
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
@@ -72,7 +75,7 @@ struct RequestFile {
     pub mode: String,
     #[serde(rename = "type")]
     pub _type: String,
-    pub sha: String,
+    pub sha: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -279,20 +282,30 @@ impl Requests {
     pub fn create_tree(
         &self,
         base_tree: String,
-        updated_extensions: Vec<(String, HashMap<String, String>)>,
+        updated_extensions: UpdatedExtensions,
     ) -> Result<CreateTreeResponse, ()> {
         let mut tree = vec![];
         for updated_extension in updated_extensions {
-            for updated_extension_file in updated_extension.1.keys() {
-                let file = RequestFile {
-                    path: updated_extension_file.to_string(),
-                    mode: String::from("100644"),
-                    _type: String::from("blob"),
-                    sha: updated_extension
-                        .1
-                        .get(&updated_extension_file.to_string())
-                        .unwrap()
-                        .to_string(),
+            for updated_extension_file in updated_extension.2.keys() {
+                let file = match updated_extension.1 {
+                    UpdateTypes::Deletion => RequestFile {
+                        path: updated_extension_file.clone(),
+                        mode: String::from("100644"),
+                        _type: String::from("blob"),
+                        sha: None,
+                    },
+                    _ => RequestFile {
+                        path: updated_extension_file.clone(),
+                        mode: String::from("100644"),
+                        _type: String::from("blob"),
+                        sha: Some(
+                            updated_extension
+                                .2
+                                .get(&updated_extension_file.clone())
+                                .cloned()
+                                .unwrap(),
+                        ),
+                    },
                 };
 
                 tree.push(file);
