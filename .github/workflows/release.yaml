@@ -28,8 +28,6 @@ jobs:
     steps:
       - name: Checkout Branch
         uses: actions/checkout@v4
-      - name: Updated the Rust Toolchain to Edition 2024
-        run: rustup update stable # Needed for edition 2024 support at this moment
       - name: Build Rust Binary and Upload It to the GitHub Release
         uses: taiki-e/upload-rust-binary-action@v1
         with:
