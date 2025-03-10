@@ -110,7 +110,7 @@ pub struct MetadataExtension {
     built_with: BuiltWith,
 }
 
-pub type UpdatedExtensions = Vec<(String, UpdateTypes, HashMap<String, String>)>;
+pub type UpdatedExtensions = Vec<(String, UpdateTypes, HashMap<String, Option<String>>)>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UpdateTypes {
