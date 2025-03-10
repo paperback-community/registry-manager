@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Extension deletion fixes (@Celarye)
 
+### Miscellaneous
+
+- Added a GitHub test workflow for pull requests (@Celarye)
+
 ## [v0.2.0] - 2025-03-09
 
 ### Features
