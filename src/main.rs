@@ -141,41 +141,52 @@ fn main() -> ExitCode {
         "Fetching the updated extensions from the repository and creating blobs for them in the registry"
     );
     for updated_extension in updated_extensions.iter_mut() {
-        if updated_extension.1 == UpdateTypes::Deletion {
-            continue;
-        }
+        let (repository, branch) = match updated_extension.1 {
+            UpdateTypes::Deletion => (
+                &String::from("paperback-community/extensions"),
+                &String::from("master"),
+            ),
+            _ => (&env::var("REPOSITORY").unwrap(), &String::from("gh-pages")),
+        };
 
         info!("Updating extension: {}", updated_extension.0);
 
-        match request_client.get_files(
-            &env::var("REPOSITORY").unwrap(),
-            &(env::var("BRANCH").unwrap() + "/" + &updated_extension.0 + "/index.js"),
-            &String::from("gh-pages"),
-        ) {
-            Ok(requests::GetContentResponse::List(_)) => {
-                panic!("this API request should return a single file")
-            }
-            Ok(requests::GetContentResponse::Struct(response)) => {
-                match request_client.create_blob(response.content, String::from("base64")) {
-                    Ok(blob) => {
-                        updated_extension.2.insert(response.path, blob.sha);
-                    }
-                    Err(()) => {
-                        error!("Exiting the program");
-                        return ExitCode::from(1);
+        if updated_extension.1 == UpdateTypes::Deletion {
+            updated_extension.2.insert(
+                env::var("BRANCH").unwrap() + "/" + &updated_extension.0 + "/index.js",
+                None,
+            );
+        } else {
+            match request_client.get_files(
+                &env::var("REPOSITORY").unwrap(),
+                &(env::var("BRANCH").unwrap() + "/" + &updated_extension.0 + "/index.js"),
+                &String::from("gh-pages"),
+            ) {
+                Ok(requests::GetContentResponse::List(_)) => {
+                    panic!("this API request should return a single file")
+                }
+                Ok(requests::GetContentResponse::Struct(response)) => {
+                    match request_client.create_blob(response.content, String::from("base64")) {
+                        Ok(blob) => {
+                            updated_extension.2.insert(response.path, Some(blob.sha));
+                        }
+                        Err(()) => {
+                            error!("Exiting the program");
+                            return ExitCode::from(1);
+                        }
                     }
                 }
-            }
-            Err(_) => {
-                error!("Exiting the program");
-                return ExitCode::from(1);
+                Err(_) => {
+                    error!("Exiting the program");
+                    return ExitCode::from(1);
+                }
             }
         }
 
         match request_client.get_files(
-            &env::var("REPOSITORY").unwrap(),
+            repository,
             &(env::var("BRANCH").unwrap() + "/" + &updated_extension.0 + "/static"),
-            &String::from("gh-pages"),
+            branch,
         ) {
             Ok(requests::GetContentResponse::List(response)) => {
                 for file in response.iter() {
@@ -183,30 +194,34 @@ fn main() -> ExitCode {
                         continue;
                     }
 
-                    match request_client.get_files(
-                        &env::var("REPOSITORY").unwrap(),
-                        &file.path,
-                        &String::from("gh-pages"),
-                    ) {
-                        Ok(requests::GetContentResponse::List(_)) => {
-                            panic!("this API request should return a single file")
-                        }
-                        Ok(requests::GetContentResponse::Struct(response)) => {
-                            match request_client
-                                .create_blob(response.content, String::from("base64"))
-                            {
-                                Ok(blob) => {
-                                    updated_extension.2.insert(response.path, blob.sha);
-                                }
-                                Err(()) => {
-                                    error!("Exiting the program");
-                                    return ExitCode::from(1);
+                    if updated_extension.1 == UpdateTypes::Deletion {
+                        updated_extension.2.insert(file.path.clone(), None);
+                    } else {
+                        match request_client.get_files(
+                            &env::var("REPOSITORY").unwrap(),
+                            &file.path,
+                            &String::from("gh-pages"),
+                        ) {
+                            Ok(requests::GetContentResponse::List(_)) => {
+                                panic!("this API request should return a single file")
+                            }
+                            Ok(requests::GetContentResponse::Struct(response)) => {
+                                match request_client
+                                    .create_blob(response.content, String::from("base64"))
+                                {
+                                    Ok(blob) => {
+                                        updated_extension.2.insert(response.path, Some(blob.sha));
+                                    }
+                                    Err(()) => {
+                                        error!("Exiting the program");
+                                        return ExitCode::from(1);
+                                    }
                                 }
                             }
-                        }
-                        Err(_) => {
-                            error!("Exiting the program");
-                            return ExitCode::from(1);
+                            Err(_) => {
+                                error!("Exiting the program");
+                                return ExitCode::from(1);
+                            }
                         }
                     }
                 }
@@ -233,7 +248,7 @@ fn main() -> ExitCode {
                         versioning_update_type.clone(),
                         HashMap::from([(
                             env::var("BRANCH").unwrap() + "/" + "versioning.json",
-                            blob.sha,
+                            Some(blob.sha),
                         )]),
                     ));
                 }
@@ -261,7 +276,7 @@ fn main() -> ExitCode {
                         versioning_update_type,
                         HashMap::from([(
                             env::var("BRANCH").unwrap() + "/" + "metadata.json",
-                            blob.sha,
+                            Some(blob.sha),
                         )]),
                     ));
                 }

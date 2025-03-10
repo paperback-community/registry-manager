@@ -6,7 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes at this moment.
+### Bug fixes
+
+- Extension deletion fixes (@Celarye)
 
 ## [v0.2.0] - 2025-03-09
 

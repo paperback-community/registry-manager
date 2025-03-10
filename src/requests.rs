@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use crate::versioning;
-use versioning::{UpdateTypes, UpdatedExtensions};
+use versioning::UpdatedExtensions;
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
@@ -287,25 +287,15 @@ impl Requests {
         let mut tree = vec![];
         for updated_extension in updated_extensions {
             for updated_extension_file in updated_extension.2.keys() {
-                let file = match updated_extension.1 {
-                    UpdateTypes::Deletion => RequestFile {
-                        path: updated_extension_file.clone(),
-                        mode: String::from("100644"),
-                        _type: String::from("blob"),
-                        sha: None,
-                    },
-                    _ => RequestFile {
-                        path: updated_extension_file.clone(),
-                        mode: String::from("100644"),
-                        _type: String::from("blob"),
-                        sha: Some(
-                            updated_extension
-                                .2
-                                .get(&updated_extension_file.clone())
-                                .cloned()
-                                .unwrap(),
-                        ),
-                    },
+                let file = RequestFile {
+                    path: updated_extension_file.clone(),
+                    mode: String::from("100644"),
+                    _type: String::from("blob"),
+                    sha: updated_extension
+                        .2
+                        .get(&updated_extension_file.clone())
+                        .cloned()
+                        .unwrap(),
                 };
 
                 tree.push(file);
