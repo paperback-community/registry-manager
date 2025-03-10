@@ -6,13 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No unreleased changes at this moment.
+
+## [v0.2.1] - 2025-03-10
+
 ### Bug fixes
 
-- Extension deletion fixes (@Celarye)
+- Extension deletion fixes (#3, @Celarye)
 
 ### Miscellaneous
 
-- Added a GitHub test workflow for pull requests (@Celarye)
+- Added a GitHub test workflow for pull requests (#3, @Celarye)
 
 ## [v0.2.0] - 2025-03-09
 
@@ -39,7 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Issue templates (@Celarye)
 - GitHub support, security and contributing guidelines (@Celarye)
 
-[Unreleased]: https://github.com/paperback-community/registry-manager/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/paperback-community/registry-manager/compare/v0.2.1...HEAD
+[v0.2.0]: https://github.com/paperback-community/registry-manager/compare/v0.2.0...v0.2.1
 [v0.2.0]: https://github.com/paperback-community/registry-manager/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/paperback-community/registry-manager/releases/tag/v0.1.0
 
