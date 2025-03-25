@@ -143,7 +143,7 @@ impl Versioning {
     }
 
     pub fn to_base64(&self) -> Result<String, ()> {
-        match serde_json::to_string(&self) {
+        match serde_json::to_string_pretty(&self) {
             Ok(versioning_string) => Ok(BASE64_STANDARD.encode(&versioning_string)),
             Err(err) => {
                 error!(
