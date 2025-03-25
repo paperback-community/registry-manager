@@ -317,7 +317,16 @@ fn main() -> ExitCode {
 
     info!("Creating a new commit in the registry");
     let Ok(registry_update_commit) = request_client.create_commit(
-        env::var("COMMIT_MESSAGE").unwrap_or_else(|_| String::from("Registry update")),
+        env::var("COMMIT_MESSAGE").unwrap_or_else(|_| {
+            format!(
+                "Registry management ({}, {})",
+                env::var("REPOSITORY")
+                    .unwrap()
+                    .strip_prefix("paperback-community/")
+                    .unwrap(),
+                env::var("BRANCH").unwrap(),
+            )
+        }),
         registry_update_tree.sha,
         registry_parent_commit.sha,
         env::var("COMMIT_AUTHOR_NAME").unwrap_or_else(|_| String::from("github-actions[bot]")),
