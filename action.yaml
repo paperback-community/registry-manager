@@ -14,8 +14,8 @@ inputs:
     required: true
   ## Not exposing the following inputs at this moment:
   #commit-message:
-  #  description: 'The commit message that will be used for the commit to the paperback-community/extensions repository, default "Registry update".'
-  #  default: Registry update
+  #  description: 'The commit message that will be used for the commit to the paperback-community/extensions repository, default "Registry management (repository, branch)".'
+  #  default: Registry management (repository, branch)
   #commit-author-name:
   #  description: 'The author name which will be used to make the commit to the paperback-community/extensions repository, default: "github-actions[bot]".'
   #  default: github-actions[bot]
