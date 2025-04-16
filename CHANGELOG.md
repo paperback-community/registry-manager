@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pretty print the versioning file (@celarye)
 - Added repository info to the commit message (@celarye)
 
+### Miscellaneous
+
+- Fixed a broken link in the changelog (@celarye)
+
 ## [v0.2.1] - 2025-03-10
 
 ### Bug fixes
@@ -47,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub support, security and contributing guidelines (@Celarye)
 
 [Unreleased]: https://github.com/paperback-community/registry-manager/compare/v0.2.1...HEAD
-[v0.2.0]: https://github.com/paperback-community/registry-manager/compare/v0.2.0...v0.2.1
+[v0.2.1]: https://github.com/paperback-community/registry-manager/compare/v0.2.0...v0.2.1
 [v0.2.0]: https://github.com/paperback-community/registry-manager/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/paperback-community/registry-manager/releases/tag/v0.1.0
 
