@@ -1,5 +1,6 @@
 use std::{env, time::Duration};
 
+use base64::{Engine, prelude::BASE64_STANDARD};
 use reqwest::{
     StatusCode,
     blocking::Client,
@@ -11,21 +12,13 @@ use tracing::error;
 use crate::versioning;
 use versioning::UpdatedExtensions;
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub enum GetContentResponse {
-    Struct(GetContentFileResponse),
-    List(Vec<GetContentDirectoryResponse>),
+pub enum FileOutputFormat {
+    UTF8,
+    BASE64,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct GetContentFileResponse {
-    pub path: String,
-    pub content: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct GetContentDirectoryResponse {
+pub struct GetContentDirectoryEntryResponse {
     #[serde(rename = "type")]
     pub _type: String,
     pub path: String,
@@ -53,7 +46,7 @@ pub struct Tree {
 }
 
 #[derive(Debug, Serialize)]
-struct CreateBlobRequestBody {
+struct CreateBlobRequest {
     content: String,
     encoding: String,
 }
@@ -64,7 +57,7 @@ pub struct CreateBlobResponse {
 }
 
 #[derive(Debug, Serialize)]
-struct CreateTreeRequestBody {
+struct CreateTreeRequest {
     pub base_tree: String,
     pub tree: Vec<RequestFile>,
 }
@@ -84,7 +77,7 @@ pub struct CreateTreeResponse {
 }
 
 #[derive(Debug, Serialize)]
-struct CreateCommitRequestBody {
+struct CreateCommitRequest {
     message: String,
     tree: String,
     parents: Vec<String>,
@@ -103,7 +96,7 @@ pub struct CreateCommitResponse {
 }
 
 #[derive(Debug, Serialize)]
-struct UpdateReferenceRequestBody {
+struct UpdateReferenceRequest {
     sha: String,
 }
 
@@ -145,25 +138,27 @@ impl Requests {
         }
     }
 
-    pub fn get_files(
+    pub fn get_file(
         &self,
         repository: &String,
         path: &String,
         branch: &String,
-    ) -> Result<GetContentResponse, bool> {
+        output_format: &FileOutputFormat,
+    ) -> Result<String, bool> {
         match self
             .client
             .get(format!(
                 "https://api.github.com/repos/{}/contents/{}?ref={}",
                 &repository, &path, &branch
             ))
+            .header("Accept", "application/vnd.github.raw+json")
             .send()
         {
             Ok(raw_response) => {
                 match raw_response.status() {
-                    StatusCode::OK => {}
+                    StatusCode::OK => (),
                     StatusCode::NOT_FOUND => {
-                        error!("The requested files were not found");
+                        error!("The requested file was not found");
                         return Err(false);
                     }
                     _ => {
@@ -175,20 +170,73 @@ impl Requests {
                     }
                 }
 
-                match raw_response.json::<GetContentResponse>() {
+                match output_format {
+                    FileOutputFormat::UTF8 => match raw_response.text() {
+                        Ok(response) => Ok(response),
+                        Err(err) => {
+                            error!(
+                                "Something went wrong while deserializing the raw response to UTF-8: {}",
+                                &err
+                            );
+                            Err(true)
+                        }
+                    },
+                    FileOutputFormat::BASE64 => match raw_response.bytes() {
+                        Ok(response) => Ok(BASE64_STANDARD.encode(response)),
+                        Err(err) => {
+                            error!(
+                                "Something went wrong while serialzing the raw response to base64: {}",
+                                &err
+                            );
+                            Err(true)
+                        }
+                    },
+                }
+            }
+            Err(err) => {
+                error!("Something went wrong while making the request: {}", &err);
+                Err(true)
+            }
+        }
+    }
+
+    pub fn get_directory(
+        &self,
+        repository: &String,
+        path: &String,
+        branch: &String,
+    ) -> Result<Vec<GetContentDirectoryEntryResponse>, ()> {
+        match self
+            .client
+            .get(format!(
+                "https://api.github.com/repos/{}/contents/{}?ref={}",
+                &repository, &path, &branch
+            ))
+            .send()
+        {
+            Ok(raw_response) => {
+                if raw_response.status() != StatusCode::OK {
+                    error!(
+                        "The response was undesired, status code: {}",
+                        &raw_response.status(),
+                    );
+                    return Err(());
+                }
+
+                match raw_response.json::<Vec<GetContentDirectoryEntryResponse>>() {
                     Ok(response) => Ok(response),
                     Err(err) => {
                         error!(
                             "Something went wrong while deserializing the response to JSON: {}",
                             &err
                         );
-                        Err(true)
+                        Err(())
                     }
                 }
             }
             Err(err) => {
                 error!("Something went wrong while making the request: {}", &err);
-                Err(true)
+                Err(())
             }
         }
     }
@@ -234,7 +282,7 @@ impl Requests {
     }
 
     pub fn create_blob(&self, content: String, encoding: String) -> Result<CreateBlobResponse, ()> {
-        let body = CreateBlobRequestBody { content, encoding };
+        let body = CreateBlobRequest { content, encoding };
 
         let p_response = match serde_json::to_string(&body) {
             Ok(body_string) => self
@@ -302,7 +350,7 @@ impl Requests {
             }
         }
 
-        let body = CreateTreeRequestBody { base_tree, tree };
+        let body = CreateTreeRequest { base_tree, tree };
 
         let p_response = match serde_json::to_string(&body) {
             Ok(body_string) => self
@@ -355,7 +403,7 @@ impl Requests {
         author_name: String,
         author_email: String,
     ) -> Result<CreateCommitResponse, ()> {
-        let body = CreateCommitRequestBody {
+        let body = CreateCommitRequest {
             message,
             tree: tree_sha,
             parents: vec![parent_commit_sha],
@@ -409,7 +457,7 @@ impl Requests {
     }
 
     pub fn update_reference(&self, commit_sha: String) -> Result<(), ()> {
-        let body = UpdateReferenceRequestBody { sha: commit_sha };
+        let body = UpdateReferenceRequest { sha: commit_sha };
 
         let p_body_string = serde_json::to_string(&body);
 

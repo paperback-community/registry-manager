@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env, process::ExitCode};
 
 mod requests;
-use requests::Requests;
+use requests::{FileOutputFormat, Requests};
 mod utils;
 mod versioning;
 use tracing::{error, info, warn};
@@ -37,51 +37,41 @@ fn main() -> ExitCode {
 
     info!("Requesting the registry versioning file");
     let (mut registry_versioning, mut registry_metadata, versioning_update_type) =
-        match request_client.get_files(
+        match request_client.get_file(
             &String::from("paperback-community/extensions"),
             &(env::var("BRANCH").unwrap() + "/versioning.json"),
             &String::from("master"),
+            &FileOutputFormat::UTF8,
         ) {
-            Ok(requests::GetContentResponse::Struct(response)) => {
-                match Versioning::new(&response.content) {
-                    Ok(registry_versioning) => {
-                        info!("Requesting the registry metadata file");
-                        match request_client.get_files(
-                            &String::from("paperback-community/extensions"),
-                            &(env::var("BRANCH").unwrap() + "/metadata.json"),
-                            &String::from("master"),
-                        ) {
-                            Ok(requests::GetContentResponse::Struct(response)) => {
-                                match Metadata::new(&response.content) {
-                                    Ok(registry_metadata) => (
-                                        registry_versioning,
-                                        registry_metadata,
-                                        UpdateTypes::Update,
-                                    ),
-                                    Err(()) => {
-                                        error!("Exiting the program");
-                                        return ExitCode::from(1);
-                                    }
-                                }
+            Ok(response) => match Versioning::new(&response) {
+                Ok(registry_versioning) => {
+                    info!("Requesting the registry metadata file");
+                    match request_client.get_file(
+                        &String::from("paperback-community/extensions"),
+                        &(env::var("BRANCH").unwrap() + "/metadata.json"),
+                        &String::from("master"),
+                        &FileOutputFormat::UTF8,
+                    ) {
+                        Ok(response) => match Metadata::new(&response) {
+                            Ok(registry_metadata) => {
+                                (registry_versioning, registry_metadata, UpdateTypes::Update)
                             }
-                            Ok(requests::GetContentResponse::List(_)) => {
-                                panic!("this API request should return a single file")
-                            }
-                            Err(_) => {
+                            Err(()) => {
                                 error!("Exiting the program");
                                 return ExitCode::from(1);
                             }
+                        },
+                        Err(_) => {
+                            error!("Exiting the program");
+                            return ExitCode::from(1);
                         }
                     }
-                    Err(()) => {
-                        error!("Exiting the program");
-                        return ExitCode::from(1);
-                    }
                 }
-            }
-            Ok(requests::GetContentResponse::List(_)) => {
-                panic!("this API request should return a single file")
-            }
+                Err(()) => {
+                    error!("Exiting the program");
+                    return ExitCode::from(1);
+                }
+            },
             Err(false) => {
                 warn!(
                     "No registry versioning file found for this branch, assuming it's being created for the first time."
@@ -99,23 +89,19 @@ fn main() -> ExitCode {
         };
 
     info!("Requesting the repository versioning file");
-    let repository_versioning = match request_client.get_files(
+    let repository_versioning = match request_client.get_file(
         &env::var("REPOSITORY").unwrap(),
         &(env::var("BRANCH").unwrap() + "/versioning.json"),
         &String::from("gh-pages"),
+        &FileOutputFormat::UTF8,
     ) {
-        Ok(requests::GetContentResponse::Struct(response)) => {
-            match Versioning::new(&response.content) {
-                Ok(repository_versioning) => repository_versioning,
-                Err(()) => {
-                    error!("Exiting the program");
-                    return ExitCode::from(1);
-                }
+        Ok(response) => match Versioning::new(&response) {
+            Ok(repository_versioning) => repository_versioning,
+            Err(()) => {
+                error!("Exiting the program");
+                return ExitCode::from(1);
             }
-        }
-        Ok(requests::GetContentResponse::List(_)) => {
-            panic!("this API request should return a single file")
-        }
+        },
         Err(_) => {
             error!("Exiting the program");
             return ExitCode::from(1);
@@ -157,25 +143,24 @@ fn main() -> ExitCode {
                 None,
             );
         } else {
-            match request_client.get_files(
+            match request_client.get_file(
                 &env::var("REPOSITORY").unwrap(),
                 &(env::var("BRANCH").unwrap() + "/" + &updated_extension.0 + "/index.js"),
                 &String::from("gh-pages"),
+                &FileOutputFormat::UTF8,
             ) {
-                Ok(requests::GetContentResponse::List(_)) => {
-                    panic!("this API request should return a single file")
-                }
-                Ok(requests::GetContentResponse::Struct(response)) => {
-                    match request_client.create_blob(response.content, String::from("base64")) {
-                        Ok(blob) => {
-                            updated_extension.2.insert(response.path, Some(blob.sha));
-                        }
-                        Err(()) => {
-                            error!("Exiting the program");
-                            return ExitCode::from(1);
-                        }
+                Ok(response) => match request_client.create_blob(response, String::from("utf-8")) {
+                    Ok(blob) => {
+                        updated_extension.2.insert(
+                            env::var("BRANCH").unwrap() + "/" + &updated_extension.0 + "/index.js",
+                            Some(blob.sha),
+                        );
                     }
-                }
+                    Err(()) => {
+                        error!("Exiting the program");
+                        return ExitCode::from(1);
+                    }
+                },
                 Err(_) => {
                     error!("Exiting the program");
                     return ExitCode::from(1);
@@ -183,13 +168,13 @@ fn main() -> ExitCode {
             }
         }
 
-        match request_client.get_files(
+        match request_client.get_directory(
             repository,
             &(env::var("BRANCH").unwrap() + "/" + &updated_extension.0 + "/static"),
             branch,
         ) {
-            Ok(requests::GetContentResponse::List(response)) => {
-                for file in response.iter() {
+            Ok(response) => {
+                for file in response {
                     if file._type != "file" {
                         continue;
                     }
@@ -197,20 +182,16 @@ fn main() -> ExitCode {
                     if updated_extension.1 == UpdateTypes::Deletion {
                         updated_extension.2.insert(file.path.clone(), None);
                     } else {
-                        match request_client.get_files(
+                        match request_client.get_file(
                             &env::var("REPOSITORY").unwrap(),
                             &file.path,
                             &String::from("gh-pages"),
+                            &FileOutputFormat::BASE64,
                         ) {
-                            Ok(requests::GetContentResponse::List(_)) => {
-                                panic!("this API request should return a single file")
-                            }
-                            Ok(requests::GetContentResponse::Struct(response)) => {
-                                match request_client
-                                    .create_blob(response.content, String::from("base64"))
-                                {
+                            Ok(response) => {
+                                match request_client.create_blob(response, String::from("base64")) {
                                     Ok(blob) => {
-                                        updated_extension.2.insert(response.path, Some(blob.sha));
+                                        updated_extension.2.insert(file.path, Some(blob.sha));
                                     }
                                     Err(()) => {
                                         error!("Exiting the program");
@@ -226,22 +207,17 @@ fn main() -> ExitCode {
                     }
                 }
             }
-            Ok(requests::GetContentResponse::Struct(_)) => {
-                panic!("this API request should return a list of files")
-            }
-            Err(_) => {
+            Err(()) => {
                 error!("Exiting the program");
                 return ExitCode::from(1);
             }
         }
     }
 
-    info!(
-        "Converting the local copy of the registry versioning file into base64 and creating a blob for it in the registry"
-    );
-    match registry_versioning.to_base64() {
-        Ok(registry_versioning_base64) => {
-            match request_client.create_blob(registry_versioning_base64, String::from("base64")) {
+    info!("Creating a blob of the local copy of the registry versioning file in the registry");
+    match registry_versioning.to_string() {
+        Ok(registry_versioning_string) => {
+            match request_client.create_blob(registry_versioning_string, String::from("utf-8")) {
                 Ok(blob) => {
                     updated_extensions.push((
                         String::from("Versioning"),
@@ -264,12 +240,10 @@ fn main() -> ExitCode {
         }
     }
 
-    info!(
-        "Converting the local copy of the registry metadata file into base64 and creating a blob for it in the registry"
-    );
-    match registry_metadata.to_base64() {
-        Ok(registry_metadata_base64) => {
-            match request_client.create_blob(registry_metadata_base64, String::from("base64")) {
+    info!("Creating a blob of the local copy of the metadata file in the registry");
+    match registry_metadata.to_string() {
+        Ok(registry_metadata_string) => {
+            match request_client.create_blob(registry_metadata_string, String::from("utf-8")) {
                 Ok(blob) => {
                     updated_extensions.push((
                         String::from("Metadata"),
