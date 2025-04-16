@@ -1,6 +1,5 @@
 use std::{collections::HashMap, env};
 
-use base64::prelude::*;
 use chrono::Utc;
 use node_semver::Version;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeSeq};
@@ -121,20 +120,11 @@ pub enum UpdateTypes {
 
 impl Versioning {
     pub fn new(response_content: &str) -> Result<Versioning, ()> {
-        match BASE64_STANDARD.decode(response_content.replace("\n", "")) {
-            Ok(bytes) => match serde_json::from_slice(bytes.as_slice()) {
-                Ok(versioning) => Ok(versioning),
-                Err(err) => {
-                    error!(
-                        "An error occurred while deserializing the response content to JSON: {}",
-                        &err
-                    );
-                    Err(())
-                }
-            },
+        match serde_json::from_str(response_content) {
+            Ok(versioning) => Ok(versioning),
             Err(err) => {
                 error!(
-                    "An error occurred while base64 decoding the response content: {}",
+                    "An error occurred while deserializing the response content to JSON: {}",
                     &err
                 );
                 Err(())
@@ -142,12 +132,12 @@ impl Versioning {
         }
     }
 
-    pub fn to_base64(&self) -> Result<String, ()> {
+    pub fn to_string(&self) -> Result<String, ()> {
         match serde_json::to_string_pretty(&self) {
-            Ok(versioning_string) => Ok(BASE64_STANDARD.encode(&versioning_string)),
+            Ok(versioning_string) => Ok(versioning_string),
             Err(err) => {
                 error!(
-                    "An error occurred while encoding the versioning file into base64: {}",
+                    "An error occurred while serializing the versioning file into UTF-8: {}",
                     &err
                 );
                 Err(())
@@ -310,20 +300,11 @@ impl Versioning {
 
 impl Metadata {
     pub fn new(response_content: &str) -> Result<Metadata, ()> {
-        match BASE64_STANDARD.decode(response_content.replace("\n", "")) {
-            Ok(bytes) => match serde_json::from_slice(bytes.as_slice()) {
-                Ok(metadata) => Ok(metadata),
-                Err(err) => {
-                    error!(
-                        "An error occurred while deserializing the response content to JSON: {}",
-                        &err
-                    );
-                    Err(())
-                }
-            },
+        match serde_json::from_str(response_content) {
+            Ok(metadata) => Ok(metadata),
             Err(err) => {
                 error!(
-                    "An error occurred while base64 decoding the response content: {}",
+                    "An error occurred while deserializing the response content to JSON: {}",
                     &err
                 );
                 Err(())
@@ -331,12 +312,12 @@ impl Metadata {
         }
     }
 
-    pub fn to_base64(&self) -> Result<String, ()> {
+    pub fn to_string(&self) -> Result<String, ()> {
         match serde_json::to_string(&self) {
-            Ok(metadata_string) => Ok(BASE64_STANDARD.encode(&metadata_string)),
+            Ok(metadata_string) => Ok(metadata_string),
             Err(err) => {
                 error!(
-                    "An error occurred while encoding the metadata file into base64: {}",
+                    "An error occurred while serializing the metadata file into UTF-8: {}",
                     &err
                 );
                 Err(())

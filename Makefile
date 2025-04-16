@@ -8,6 +8,10 @@ check:
 	@echo "Checking..."
 	@cargo check
 
+clippy:
+	@echo "Running Clippy..."
+	@cargo clippy -- -W clippy::pedantic
+
 build_dev:
 	@echo "Building debug..."
 	@cargo build --features dotenv

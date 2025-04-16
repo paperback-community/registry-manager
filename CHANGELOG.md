@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pretty print the versioning file (@celarye)
 - Added repository info to the commit message (@celarye)
 
+### Bug Fixes
+
+- Fixed GitHub API file size limit issue with object fetching (@celarye)
+
 ### Miscellaneous
 
 - Fixed a broken link in the changelog (@celarye)
