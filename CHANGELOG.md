@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Miscellaneous
 
 - Fixed a broken link in the changelog (@celarye)
+- Switched to Clippy (@celarye)
 
 ## [v0.2.1] - 2025-03-10
 

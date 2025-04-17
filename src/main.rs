@@ -4,293 +4,75 @@ mod requests;
 use requests::{FileOutputFormat, Requests};
 mod utils;
 mod versioning;
+use serde::Serialize;
 use tracing::{error, info, warn};
-use versioning::{Metadata, UpdateTypes, Versioning};
+use versioning::{JsonFileAsStruct, ManageTypes, ManagedExtensions, Metadata, Versioning};
 
 fn main() -> ExitCode {
-    #[cfg(feature = "dotenv")]
-    {
-        println!("Loading the .env file");
-        if let Err(()) = utils::env::load_dotenv() {
-            eprintln!("Exiting the program");
-            return ExitCode::from(1);
-        };
+    if let Ok(()) = run() {
+        info!("Exiting the tool");
+        ExitCode::from(0)
+    } else {
+        error!("Exiting the tool");
+        ExitCode::from(1)
     }
+}
 
-    println!("Initializing the logger");
-    if let Err(()) = utils::logger::new() {
-        eprintln!("Exiting the program");
-        return ExitCode::from(1);
-    };
-
-    info!("Validating the environment variables (REPOSITORY, BRANCH)");
-    if let Err(()) = utils::env::validate() {
-        error!("Exiting the program");
-        return ExitCode::from(1);
-    };
-
-    info!("Initializing the request client");
-    let Ok(request_client) = Requests::new() else {
-        error!("Exiting the program");
-        return ExitCode::from(1);
-    };
+fn run() -> Result<(), ()> {
+    let request_client = initialization()?;
 
     info!("Requesting the registry versioning file");
-    let (mut registry_versioning, mut registry_metadata, versioning_update_type) =
-        match request_client.get_file(
-            &String::from("paperback-community/extensions"),
-            &(env::var("BRANCH").unwrap() + "/versioning.json"),
-            &String::from("master"),
-            &FileOutputFormat::UTF8,
-        ) {
-            Ok(response) => match Versioning::new(&response) {
-                Ok(registry_versioning) => {
-                    info!("Requesting the registry metadata file");
-                    match request_client.get_file(
-                        &String::from("paperback-community/extensions"),
-                        &(env::var("BRANCH").unwrap() + "/metadata.json"),
-                        &String::from("master"),
-                        &FileOutputFormat::UTF8,
-                    ) {
-                        Ok(response) => match Metadata::new(&response) {
-                            Ok(registry_metadata) => {
-                                (registry_versioning, registry_metadata, UpdateTypes::Update)
-                            }
-                            Err(()) => {
-                                error!("Exiting the program");
-                                return ExitCode::from(1);
-                            }
-                        },
-                        Err(_) => {
-                            error!("Exiting the program");
-                            return ExitCode::from(1);
-                        }
-                    }
-                }
-                Err(()) => {
-                    error!("Exiting the program");
-                    return ExitCode::from(1);
-                }
-            },
-            Err(false) => {
-                warn!(
-                    "No registry versioning file found for this branch, assuming it's being created for the first time."
-                );
-                (
-                    Versioning::default(),
-                    Metadata::default(),
-                    UpdateTypes::Addition,
-                )
-            }
-            Err(true) => {
-                error!("Exiting the program");
-                return ExitCode::from(1);
-            }
-        };
+    let (mut registry_versioning, mut registry_metadata, versioning_manage_type) =
+        request_registry_versioning_metadata_files(&request_client)?;
 
     info!("Requesting the repository versioning file");
-    let repository_versioning = match request_client.get_file(
-        &env::var("REPOSITORY").unwrap(),
-        &(env::var("BRANCH").unwrap() + "/versioning.json"),
-        &String::from("gh-pages"),
-        &FileOutputFormat::UTF8,
-    ) {
-        Ok(response) => match Versioning::new(&response) {
-            Ok(repository_versioning) => repository_versioning,
-            Err(()) => {
-                error!("Exiting the program");
-                return ExitCode::from(1);
-            }
-        },
-        Err(_) => {
-            error!("Exiting the program");
-            return ExitCode::from(1);
-        }
-    };
+    let repository_versioning = request_repository_versioning_file(&request_client)?;
 
-    info!("Updating the local copy of the registry versioning file");
-    let mut updated_extensions =
-        match registry_versioning.update(&mut registry_metadata, repository_versioning) {
-            Ok(updated_extensions) => updated_extensions,
-            Err(()) => {
-                error!("Exiting the program");
-                return ExitCode::from(1);
-            }
-        };
+    info!("Updating the local copy of the registry versioning and metadata files");
+    let mut managed_extensions =
+        registry_versioning.update(&mut registry_metadata, &repository_versioning)?;
 
-    if updated_extensions.is_empty() {
-        info!("Exiting the program");
-        return ExitCode::from(0);
+    if managed_extensions.is_empty() {
+        return Ok(());
     }
 
     info!(
-        "Fetching the updated extensions from the repository and creating blobs for them in the registry"
+        "Fetching the added and updated extensions from the repository and creating blobs for them in the registry"
     );
-    for updated_extension in updated_extensions.iter_mut() {
-        let (repository, branch) = match updated_extension.1 {
-            UpdateTypes::Deletion => (
-                &String::from("paperback-community/extensions"),
-                &String::from("master"),
-            ),
-            _ => (&env::var("REPOSITORY").unwrap(), &String::from("gh-pages")),
-        };
+    extension_management(&request_client, &mut managed_extensions)?;
 
-        info!("Updating extension: {}", updated_extension.0);
+    info!("Creating a blob from the local copy of the registry versioning file in the registry.");
+    create_registry_json_file_blob::<Versioning>(
+        &request_client,
+        &registry_versioning,
+        &versioning_manage_type,
+        "Versioning",
+        &mut managed_extensions,
+    )?;
 
-        if updated_extension.1 == UpdateTypes::Deletion {
-            updated_extension.2.insert(
-                env::var("BRANCH").unwrap() + "/" + &updated_extension.0 + "/index.js",
-                None,
-            );
-        } else {
-            match request_client.get_file(
-                &env::var("REPOSITORY").unwrap(),
-                &(env::var("BRANCH").unwrap() + "/" + &updated_extension.0 + "/index.js"),
-                &String::from("gh-pages"),
-                &FileOutputFormat::UTF8,
-            ) {
-                Ok(response) => match request_client.create_blob(response, String::from("utf-8")) {
-                    Ok(blob) => {
-                        updated_extension.2.insert(
-                            env::var("BRANCH").unwrap() + "/" + &updated_extension.0 + "/index.js",
-                            Some(blob.sha),
-                        );
-                    }
-                    Err(()) => {
-                        error!("Exiting the program");
-                        return ExitCode::from(1);
-                    }
-                },
-                Err(_) => {
-                    error!("Exiting the program");
-                    return ExitCode::from(1);
-                }
-            }
-        }
-
-        match request_client.get_directory(
-            repository,
-            &(env::var("BRANCH").unwrap() + "/" + &updated_extension.0 + "/static"),
-            branch,
-        ) {
-            Ok(response) => {
-                for file in response {
-                    if file._type != "file" {
-                        continue;
-                    }
-
-                    if updated_extension.1 == UpdateTypes::Deletion {
-                        updated_extension.2.insert(file.path.clone(), None);
-                    } else {
-                        match request_client.get_file(
-                            &env::var("REPOSITORY").unwrap(),
-                            &file.path,
-                            &String::from("gh-pages"),
-                            &FileOutputFormat::BASE64,
-                        ) {
-                            Ok(response) => {
-                                match request_client.create_blob(response, String::from("base64")) {
-                                    Ok(blob) => {
-                                        updated_extension.2.insert(file.path, Some(blob.sha));
-                                    }
-                                    Err(()) => {
-                                        error!("Exiting the program");
-                                        return ExitCode::from(1);
-                                    }
-                                }
-                            }
-                            Err(_) => {
-                                error!("Exiting the program");
-                                return ExitCode::from(1);
-                            }
-                        }
-                    }
-                }
-            }
-            Err(()) => {
-                error!("Exiting the program");
-                return ExitCode::from(1);
-            }
-        }
-    }
-
-    info!("Creating a blob of the local copy of the registry versioning file in the registry");
-    match registry_versioning.to_string() {
-        Ok(registry_versioning_string) => {
-            match request_client.create_blob(registry_versioning_string, String::from("utf-8")) {
-                Ok(blob) => {
-                    updated_extensions.push((
-                        String::from("Versioning"),
-                        versioning_update_type.clone(),
-                        HashMap::from([(
-                            env::var("BRANCH").unwrap() + "/" + "versioning.json",
-                            Some(blob.sha),
-                        )]),
-                    ));
-                }
-                Err(()) => {
-                    error!("Exiting the program");
-                    return ExitCode::from(1);
-                }
-            }
-        }
-        Err(()) => {
-            error!("Exiting the program");
-            return ExitCode::from(1);
-        }
-    }
-
-    info!("Creating a blob of the local copy of the metadata file in the registry");
-    match registry_metadata.to_string() {
-        Ok(registry_metadata_string) => {
-            match request_client.create_blob(registry_metadata_string, String::from("utf-8")) {
-                Ok(blob) => {
-                    updated_extensions.push((
-                        String::from("Metadata"),
-                        versioning_update_type,
-                        HashMap::from([(
-                            env::var("BRANCH").unwrap() + "/" + "metadata.json",
-                            Some(blob.sha),
-                        )]),
-                    ));
-                }
-                Err(()) => {
-                    error!("Exiting the program");
-                    return ExitCode::from(1);
-                }
-            }
-        }
-        Err(()) => {
-            error!("Exiting the program");
-            return ExitCode::from(1);
-        }
-    }
+    info!("Creating a blob from the local copy of the registry metadata file in the registry.");
+    create_registry_json_file_blob::<Metadata>(
+        &request_client,
+        &registry_metadata,
+        &versioning_manage_type,
+        "Metadata",
+        &mut managed_extensions,
+    )?;
 
     info!("Fetching the latest commit and tree in the registry");
-    let (registry_parent_tree, registry_parent_commit) = match request_client.get_branch(
+    let registry_branch = request_client.get_branch(
         &String::from("paperback-community/extensions"),
         &String::from("master"),
-    ) {
-        Ok(registry_branch) => (
-            registry_branch.commit.commit.tree.clone(),
-            registry_branch.commit,
-        ),
-        Err(()) => {
-            error!("Exiting the program");
-            return ExitCode::from(1);
-        }
-    };
+    )?;
 
     info!("Creating a new tree in the registry");
-    let Ok(registry_update_tree) =
-        request_client.create_tree(registry_parent_tree.sha, updated_extensions)
-    else {
-        error!("Exiting the program");
-        return ExitCode::from(1);
-    };
+    let registry_update_tree = request_client.create_tree(
+        registry_branch.commit.commit.tree.sha.clone(),
+        managed_extensions,
+    )?;
 
     info!("Creating a new commit in the registry");
-    let Ok(registry_update_commit) = request_client.create_commit(
+    let registry_update_commit = request_client.create_commit(
         env::var("COMMIT_MESSAGE").unwrap_or_else(|_| {
             format!(
                 "Registry management ({}, {})",
@@ -302,22 +84,185 @@ fn main() -> ExitCode {
             )
         }),
         registry_update_tree.sha,
-        registry_parent_commit.sha,
+        registry_branch.commit.sha,
         env::var("COMMIT_AUTHOR_NAME").unwrap_or_else(|_| String::from("github-actions[bot]")),
         env::var("COMMIT_AUTHOR_EMAIL")
             .unwrap_or_else(|_| String::from("github-actions[bot]@users.noreply.github.com")),
-    ) else {
-        error!("Exiting the program");
-        return ExitCode::from(1);
-    };
+    )?;
 
     info!("Updating the reference in the registry");
-    if let Err(()) = request_client.update_reference(registry_update_commit.sha) {
-        error!("Exiting the program");
-        return ExitCode::from(1);
+    request_client.update_reference(registry_update_commit.sha)?;
+
+    info!("Succesfully updated the registry");
+    Ok(())
+}
+
+fn initialization() -> Result<Requests, ()> {
+    #[cfg(feature = "dotenv")]
+    {
+        println!("Loading the .env file");
+        utils::env::load_dotenv()?;
     }
 
-    info!("Succesfully published the extensions to the registry");
-    info!("Exiting the program");
-    ExitCode::from(0)
+    println!("Initializing the logger");
+    utils::logger::new()?;
+
+    info!("Validating the environment variables (REPOSITORY, BRANCH)");
+    utils::env::validate()?;
+
+    info!("Initializing the request client");
+    Requests::new()
+}
+
+fn request_registry_versioning_metadata_files(
+    request_client: &Requests,
+) -> Result<(Box<Versioning>, Box<Metadata>, ManageTypes), ()> {
+    match request_client.get_file(
+        &String::from("paperback-community/extensions"),
+        &(env::var("BRANCH").unwrap() + "/versioning.json"),
+        &String::from("master"),
+        &FileOutputFormat::UTF8,
+    ) {
+        Ok(response) => {
+            if let Ok(registry_versioning) = Versioning::new(&response) {
+                info!("Requesting the registry metadata file");
+                if let Ok(response) = request_client.get_file(
+                    &String::from("paperback-community/extensions"),
+                    &(env::var("BRANCH").unwrap() + "/metadata.json"),
+                    &String::from("master"),
+                    &FileOutputFormat::UTF8,
+                ) {
+                    if let Ok(registry_metadata) = Metadata::new(&response) {
+                        return Ok((registry_versioning, registry_metadata, ManageTypes::Update));
+                    }
+                }
+            }
+        }
+        Err(false) => {
+            warn!(
+                "No registry versioning file found for this branch, assuming it's being created for the first time."
+            );
+            return Ok((
+                Box::new(Versioning::default()),
+                Box::new(Metadata::default()),
+                ManageTypes::Addition,
+            ));
+        }
+        Err(true) => (),
+    }
+
+    Err(())
+}
+
+fn request_repository_versioning_file(request_client: &Requests) -> Result<Box<Versioning>, ()> {
+    if let Ok(response) = request_client.get_file(
+        &env::var("REPOSITORY").unwrap(),
+        &(env::var("BRANCH").unwrap() + "/versioning.json"),
+        &String::from("gh-pages"),
+        &FileOutputFormat::UTF8,
+    ) {
+        return Versioning::new(&response);
+    }
+
+    Err(())
+}
+
+fn extension_management(
+    request_client: &Requests,
+    managed_extensions: &mut ManagedExtensions,
+) -> Result<(), ()> {
+    for managed_extension in managed_extensions {
+        let (repository, branch) = match managed_extension.1 {
+            ManageTypes::Deletion => (
+                &String::from("paperback-community/extensions"),
+                &String::from("master"),
+            ),
+            _ => (&env::var("REPOSITORY").unwrap(), &String::from("gh-pages")),
+        };
+
+        info!("Updating extension: {}", managed_extension.0);
+
+        if managed_extension.1 == ManageTypes::Deletion {
+            managed_extension.2.insert(
+                env::var("BRANCH").unwrap() + "/" + &managed_extension.0 + "/index.js",
+                None,
+            );
+        } else if let Ok(response) = request_client.get_file(
+            &env::var("REPOSITORY").unwrap(),
+            &(env::var("BRANCH").unwrap() + "/" + &managed_extension.0 + "/index.js"),
+            &String::from("gh-pages"),
+            &FileOutputFormat::UTF8,
+        ) {
+            if let Ok(blob) = request_client.create_blob(response, String::from("utf-8")) {
+                managed_extension.2.insert(
+                    env::var("BRANCH").unwrap() + "/" + &managed_extension.0 + "/index.js",
+                    Some(blob.sha),
+                );
+            } else {
+                return Err(());
+            }
+        } else {
+            return Err(());
+        }
+
+        if let Ok(response) = request_client.get_directory(
+            repository,
+            &(env::var("BRANCH").unwrap() + "/" + &managed_extension.0 + "/static"),
+            branch,
+        ) {
+            for file in response {
+                if file.etype != "file" {
+                    continue;
+                }
+
+                if managed_extension.1 == ManageTypes::Deletion {
+                    managed_extension.2.insert(file.path.clone(), None);
+                } else if let Ok(response) = request_client.get_file(
+                    &env::var("REPOSITORY").unwrap(),
+                    &file.path,
+                    &String::from("gh-pages"),
+                    &FileOutputFormat::BASE64,
+                ) {
+                    if let Ok(blob) = request_client.create_blob(response, String::from("base64")) {
+                        managed_extension.2.insert(file.path, Some(blob.sha));
+                    } else {
+                        return Err(());
+                    }
+                } else {
+                    return Err(());
+                }
+            }
+        } else {
+            return Err(());
+        }
+    }
+
+    Ok(())
+}
+
+fn create_registry_json_file_blob<JFAS: JsonFileAsStruct + Serialize>(
+    request_client: &Requests,
+    registry_versioning: &JFAS,
+    versioning_manage_type: &ManageTypes,
+    name: &str,
+    managed_extensions: &mut ManagedExtensions,
+) -> Result<(), ()> {
+    if let Ok(registry_versioning_string) = registry_versioning.to_utf8() {
+        if let Ok(blob) =
+            request_client.create_blob(registry_versioning_string, String::from("utf-8"))
+        {
+            managed_extensions.push((
+                name.to_string(),
+                versioning_manage_type.clone(),
+                HashMap::from([(
+                    env::var("BRANCH").unwrap() + "/" + name.to_lowercase().as_str() + ".json",
+                    Some(blob.sha),
+                )]),
+            ));
+
+            return Ok(());
+        }
+    }
+
+    Err(())
 }

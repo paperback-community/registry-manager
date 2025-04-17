@@ -12,6 +12,10 @@ clippy:
 	@echo "Running Clippy..."
 	@cargo clippy -- -W clippy::pedantic
 
+clippy-fix:
+	@echo "Running Clippy fixes..."
+	@cargo clippy --fix -- -W clippy::pedantic
+
 build_dev:
 	@echo "Building debug..."
 	@cargo build --features dotenv

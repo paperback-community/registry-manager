@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use crate::versioning;
-use versioning::UpdatedExtensions;
+use versioning::ManagedExtensions;
 
 pub enum FileOutputFormat {
     UTF8,
@@ -20,7 +20,7 @@ pub enum FileOutputFormat {
 #[derive(Debug, Deserialize)]
 pub struct GetContentDirectoryEntryResponse {
     #[serde(rename = "type")]
-    pub _type: String,
+    pub etype: String,
     pub path: String,
 }
 
@@ -67,7 +67,7 @@ struct RequestFile {
     pub path: String,
     pub mode: String,
     #[serde(rename = "type")]
-    pub _type: String,
+    pub ftype: String,
     pub sha: Option<String>,
 }
 
@@ -330,18 +330,18 @@ impl Requests {
     pub fn create_tree(
         &self,
         base_tree: String,
-        updated_extensions: UpdatedExtensions,
+        managed_extensions: ManagedExtensions,
     ) -> Result<CreateTreeResponse, ()> {
         let mut tree = vec![];
-        for updated_extension in updated_extensions {
-            for updated_extension_file in updated_extension.2.keys() {
+        for managed_extension in managed_extensions {
+            for managed_extension_file in managed_extension.2.keys() {
                 let file = RequestFile {
-                    path: updated_extension_file.clone(),
+                    path: managed_extension_file.clone(),
                     mode: String::from("100644"),
-                    _type: String::from("blob"),
-                    sha: updated_extension
+                    ftype: String::from("blob"),
+                    sha: managed_extension
                         .2
-                        .get(&updated_extension_file.clone())
+                        .get(&managed_extension_file.clone())
                         .cloned()
                         .unwrap(),
                 };
