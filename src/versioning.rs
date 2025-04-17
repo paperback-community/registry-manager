@@ -109,22 +109,25 @@ pub struct MetadataExtension {
     built_with: BuiltWith,
 }
 
-pub type UpdatedExtensions = Vec<(String, UpdateTypes, HashMap<String, Option<String>>)>;
+pub type ManagedExtensions = Vec<(String, ManageTypes, HashMap<String, Option<String>>)>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum UpdateTypes {
+pub enum ManageTypes {
     Addition,
     Update,
     Deletion,
 }
 
-impl Versioning {
-    pub fn new(response_content: &str) -> Result<Versioning, ()> {
-        match serde_json::from_str(response_content) {
-            Ok(versioning) => Ok(versioning),
+pub trait JsonFileAsStruct {
+    fn new<'s>(response: &'s str) -> Result<Box<Self>, ()>
+    where
+        Self: Deserialize<'s>,
+    {
+        match serde_json::from_str(response) {
+            Ok(file) => Ok(Box::new(file)),
             Err(err) => {
                 error!(
-                    "An error occurred while deserializing the response content to JSON: {}",
+                    "An error occurred while deserializing the response JSON to a struct: {}",
                     &err
                 );
                 Err(())
@@ -132,24 +135,31 @@ impl Versioning {
         }
     }
 
-    pub fn to_string(&self) -> Result<String, ()> {
+    fn to_utf8(&self) -> Result<String, ()>
+    where
+        Self: Serialize,
+    {
         match serde_json::to_string_pretty(&self) {
-            Ok(versioning_string) => Ok(versioning_string),
+            Ok(string) => Ok(string),
             Err(err) => {
                 error!(
-                    "An error occurred while serializing the versioning file into UTF-8: {}",
+                    "An error occurred while serializing the struct into UTF-8 JSON: {}",
                     &err
                 );
                 Err(())
             }
         }
     }
+}
 
+impl JsonFileAsStruct for Versioning {}
+
+impl Versioning {
     pub fn update(
         &mut self,
         metadata: &mut Metadata,
-        repository_versioning: Versioning,
-    ) -> Result<UpdatedExtensions, ()> {
+        repository_versioning: &Versioning,
+    ) -> Result<ManagedExtensions, ()> {
         if self
             .built_with
             .types
@@ -168,7 +178,7 @@ impl Versioning {
             return Err(());
         }
 
-        let mut updated_extensions = vec![];
+        let mut managed_extensions = vec![];
 
         let mut shared_extensions = vec![];
 
@@ -207,7 +217,56 @@ impl Versioning {
                 extensions: HashMap::new(),
             });
 
-        for extension in repository_extensions.iter() {
+        self.extension_additions(
+            repository_versioning,
+            metadata,
+            &repository_extensions,
+            &mut managed_extensions,
+        );
+
+        self.extension_updates(
+            repository_versioning,
+            &shared_extensions,
+            &mut managed_extensions,
+        );
+
+        self.extension_deletions(metadata, &registry_extensions, &mut managed_extensions);
+
+        if managed_extensions.is_empty() {
+            warn!("There are no extensions to manage");
+            return Ok(managed_extensions);
+        }
+
+        self.build_time = Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
+        self.built_with
+            .toolchain
+            .clone_from(&repository_versioning.built_with.toolchain);
+        self.built_with
+            .types
+            .clone_from(&repository_versioning.built_with.types);
+
+        if self.repository.name.is_empty() {
+            /*
+             * The version in the repository name is hard coded until the types package and app version are in sync again, alternative:
+             * format!("Paperback Community Extensions({}.{})", self.built_with.types.parse::<Version>().unwrap().major, self.built_with.types.parse::<Version>().unwrap().minor);
+             */
+            self.repository.name = String::from("Paperback Community Extensions (0.9)");
+            self.repository.description = String::from(
+                "All extensions from the Paperback Community combined into a single repository.",
+            );
+        }
+
+        Ok(managed_extensions)
+    }
+
+    fn extension_additions(
+        &mut self,
+        repository_versioning: &Versioning,
+        metadata: &mut Metadata,
+        repository_extensions: &Vec<String>,
+        managed_extensions: &mut ManagedExtensions,
+    ) {
+        for extension in repository_extensions {
             self.sources.insert(
                 extension.to_string(),
                 repository_versioning
@@ -230,10 +289,17 @@ impl Versioning {
                     },
                 );
 
-            updated_extensions.push((extension.clone(), UpdateTypes::Addition, HashMap::new()));
+            managed_extensions.push((extension.clone(), ManageTypes::Addition, HashMap::new()));
         }
+    }
 
-        for extension in shared_extensions.iter() {
+    fn extension_updates(
+        &mut self,
+        repository_versioning: &Versioning,
+        shared_extensions: &Vec<String>,
+        managed_extensions: &mut ManagedExtensions,
+    ) {
+        for extension in shared_extensions {
             if repository_versioning
                 .sources
                 .get(extension)
@@ -258,11 +324,18 @@ impl Versioning {
                         .clone(),
                 );
 
-                updated_extensions.push((extension.clone(), UpdateTypes::Update, HashMap::new()));
+                managed_extensions.push((extension.clone(), ManageTypes::Update, HashMap::new()));
             }
         }
+    }
 
-        for extension in registry_extensions.iter() {
+    fn extension_deletions(
+        &mut self,
+        metadata: &mut Metadata,
+        registry_extensions: &Vec<String>,
+        managed_extensions: &mut ManagedExtensions,
+    ) {
+        for extension in registry_extensions {
             self.sources.remove(extension);
 
             metadata
@@ -272,56 +345,9 @@ impl Versioning {
                 .extensions
                 .remove(extension);
 
-            updated_extensions.push((extension.clone(), UpdateTypes::Deletion, HashMap::new()));
-        }
-
-        if updated_extensions.is_empty() {
-            warn!("There are no extensions to update");
-        }
-
-        self.build_time = Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
-        self.built_with.toolchain = repository_versioning.built_with.toolchain.clone();
-        self.built_with.types = repository_versioning.built_with.types.clone();
-
-        if self.repository.name.is_empty() {
-            /*
-             * The version in the repository name is hard coded until the types package and app version are in sync again, alternative:
-             * format!("Paperback Community Extensions({}.{})", self.built_with.types.parse::<Version>().unwrap().major, self.built_with.types.parse::<Version>().unwrap().minor);
-             */
-            self.repository.name = String::from("Paperback Community Extensions (0.9)");
-            self.repository.description = String::from(
-                "All extensions from the Paperback Community combined into a single repository.",
-            );
-        }
-
-        Ok(updated_extensions)
-    }
-}
-
-impl Metadata {
-    pub fn new(response_content: &str) -> Result<Metadata, ()> {
-        match serde_json::from_str(response_content) {
-            Ok(metadata) => Ok(metadata),
-            Err(err) => {
-                error!(
-                    "An error occurred while deserializing the response content to JSON: {}",
-                    &err
-                );
-                Err(())
-            }
-        }
-    }
-
-    pub fn to_string(&self) -> Result<String, ()> {
-        match serde_json::to_string(&self) {
-            Ok(metadata_string) => Ok(metadata_string),
-            Err(err) => {
-                error!(
-                    "An error occurred while serializing the metadata file into UTF-8: {}",
-                    &err
-                );
-                Err(())
-            }
+            managed_extensions.push((extension.clone(), ManageTypes::Deletion, HashMap::new()));
         }
     }
 }
+
+impl JsonFileAsStruct for Metadata {}

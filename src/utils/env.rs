@@ -35,39 +35,31 @@ pub fn validate() -> Result<(), ()> {
      *};
      */
 
-    match env::var("REPOSITORY") {
-        Ok(value) => {
-            if !value.to_string().starts_with("paperback-community/")
-                || value.to_string().len() < 20
-            {
-                error!(
-                    "The provided repository is invalid, it should be of the structure \"paperback-community/<repository_name>\", consider using \"$${{ github.repository_name }}\""
-                );
-                return Err(());
-            }
-        }
-        Err(_) => {
-            error!("The REPOSITORY environment variable was not set");
+    if let Ok(value) = env::var("REPOSITORY") {
+        if !value.to_string().starts_with("paperback-community/") || value.to_string().len() < 20 {
+            error!(
+                "The provided repository is invalid, it should be of the structure \"paperback-community/<repository_name>\", consider using \"$${{ github.repository_name }}\""
+            );
             return Err(());
         }
-    };
+    } else {
+        error!("The REPOSITORY environment variable was not set");
+        return Err(());
+    }
 
-    match env::var("BRANCH") {
-        Ok(value) => {
-            if (!value.to_string().ends_with("/stable") && !value.to_string().ends_with("/testing"))
-                || value.to_string().len() < 7
-            {
-                error!(
-                    "The provided branch is invalid, it should be of the structure \"<paperback_major_minor_semver/<stable/testing>>\", consider using \"$${{ github.ref_name }}\""
-                );
-                return Err(());
-            }
-        }
-        Err(_) => {
-            error!("The BRANCH environment variable was not set");
+    if let Ok(value) = env::var("BRANCH") {
+        if (!value.to_string().ends_with("/stable") && !value.to_string().ends_with("/testing"))
+            || value.to_string().len() < 7
+        {
+            error!(
+                "The provided branch is invalid, it should be of the structure \"<paperback_major_minor_semver/<stable/testing>>\", consider using \"$${{ github.ref_name }}\""
+            );
             return Err(());
         }
-    };
+    } else {
+        error!("The BRANCH environment variable was not set");
+        return Err(());
+    }
 
     Ok(())
 }
