@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Pretty print the versioning file (@celarye)
 - Added repository info to the commit message (@celarye)
+- Sorted the extensions alphabetically in both the versioning and metadata files (@celarye)
 
 ### Bug Fixes
 

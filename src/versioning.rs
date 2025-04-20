@@ -1,4 +1,7 @@
-use std::{collections::HashMap, env};
+use std::{
+    collections::{BTreeMap, HashMap},
+    env,
+};
 
 use chrono::Utc;
 use node_semver::Version;
@@ -15,28 +18,7 @@ pub struct Versioning {
         serialize_with = "sources_serialize",
         deserialize_with = "sources_deserialize"
     )]
-    sources: HashMap<String, Source>,
-}
-
-fn sources_serialize<S>(sources: &HashMap<String, Source>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let mut seq = serializer.serialize_seq(Some(sources.len()))?;
-    for source in sources.values() {
-        seq.serialize_element(&source)?;
-    }
-    seq.end()
-}
-
-fn sources_deserialize<'de, D>(deserializer: D) -> Result<HashMap<String, Source>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Ok(Vec::<Source>::deserialize(deserializer)?
-        .into_iter()
-        .map(|v| (v.id.clone(), v))
-        .collect())
+    sources: BTreeMap<String, Source>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -94,13 +76,13 @@ pub struct Developers {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Metadata {
     #[serde(flatten)]
-    repositories: HashMap<String, MetadataRepository>,
+    repositories: BTreeMap<String, MetadataRepository>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct MetadataRepository {
     #[serde(flatten)]
-    extensions: HashMap<String, MetadataExtension>,
+    extensions: BTreeMap<String, MetadataExtension>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,6 +132,30 @@ pub trait JsonFileAsStruct {
             }
         }
     }
+}
+
+fn sources_serialize<S>(
+    sources: &BTreeMap<String, Source>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(sources.len()))?;
+    for source in sources.values() {
+        seq.serialize_element(&source)?;
+    }
+    seq.end()
+}
+
+fn sources_deserialize<'de, D>(deserializer: D) -> Result<BTreeMap<String, Source>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Vec::<Source>::deserialize(deserializer)?
+        .into_iter()
+        .map(|v| (v.id.clone(), v))
+        .collect())
 }
 
 impl JsonFileAsStruct for Versioning {}
@@ -214,7 +220,7 @@ impl Versioning {
             .repositories
             .entry(env::var("REPOSITORY").unwrap())
             .or_insert_with(|| MetadataRepository {
-                extensions: HashMap::new(),
+                extensions: BTreeMap::new(),
             });
 
         self.extension_additions(
