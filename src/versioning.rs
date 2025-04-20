@@ -273,6 +273,11 @@ impl Versioning {
         managed_extensions: &mut ManagedExtensions,
     ) {
         for extension in repository_extensions {
+            if extension.ends_with("Template") {
+                warn!("Detected a template extension, ignoring it");
+                continue;
+            }
+
             self.sources.insert(
                 extension.to_string(),
                 repository_versioning
