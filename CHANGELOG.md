@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Bug Fixes
 
 - Fixed GitHub API file size limit issue with object fetching (@celarye)
+- Ensured that added extensions have valid semver versions (@celarye)
 
 ### Miscellaneous
 
