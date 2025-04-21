@@ -289,6 +289,21 @@ impl Versioning {
                 continue;
             }
 
+            if repository_versioning
+                .sources
+                .get(extension)
+                .unwrap()
+                .version
+                .parse::<Version>()
+                .is_err()
+            {
+                error!(
+                    "The {} extension its version is not valid semver, ignoring it",
+                    extension
+                );
+                continue;
+            }
+
             self.sources.insert(
                 extension.to_string(),
                 repository_versioning
