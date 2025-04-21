@@ -196,7 +196,12 @@ impl Versioning {
 
         let mut registry_extensions = metadata
             .repositories
-            .get(&env::var("REPOSITORY").unwrap())
+            .get(
+                env::var("REPOSITORY")
+                    .unwrap()
+                    .strip_prefix("paperback-community/")
+                    .unwrap(),
+            )
             .cloned()
             .unwrap_or_default()
             .extensions
@@ -218,7 +223,13 @@ impl Versioning {
 
         metadata
             .repositories
-            .entry(env::var("REPOSITORY").unwrap())
+            .entry(
+                env::var("REPOSITORY")
+                    .unwrap()
+                    .strip_prefix("paperback-community/")
+                    .unwrap()
+                    .to_string(),
+            )
             .or_insert_with(|| MetadataRepository {
                 extensions: BTreeMap::new(),
             });
@@ -289,7 +300,12 @@ impl Versioning {
 
             metadata
                 .repositories
-                .get_mut(&env::var("REPOSITORY").unwrap())
+                .get_mut(
+                    env::var("REPOSITORY")
+                        .unwrap()
+                        .strip_prefix("paperback-community/")
+                        .unwrap(),
+                )
                 .unwrap()
                 .extensions
                 .insert(
@@ -351,10 +367,35 @@ impl Versioning {
 
             metadata
                 .repositories
-                .get_mut(&env::var("REPOSITORY").unwrap())
+                .get_mut(
+                    env::var("REPOSITORY")
+                        .unwrap()
+                        .strip_prefix("paperback-community/")
+                        .unwrap(),
+                )
                 .unwrap()
                 .extensions
                 .remove(extension);
+
+            if metadata
+                .repositories
+                .get(
+                    env::var("REPOSITORY")
+                        .unwrap()
+                        .strip_prefix("paperback-community/")
+                        .unwrap(),
+                )
+                .unwrap()
+                .extensions
+                .is_empty()
+            {
+                metadata.repositories.remove(
+                    env::var("REPOSITORY")
+                        .unwrap()
+                        .strip_prefix("paperback-community/")
+                        .unwrap(),
+                );
+            }
 
             managed_extensions.push((extension.clone(), ManageTypes::Deletion, HashMap::new()));
         }
