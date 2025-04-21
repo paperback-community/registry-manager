@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevented template extensions from getting added to the registry (@celarye)
 - Simplified repository keys in the metadata file (@celarye)
 - Reject extension additions which overwrite extensions from other repositories (@celarye)
+- The metadata file now updates on extension updates (@celarye)
 
 ### Bug Fixes
 

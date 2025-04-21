@@ -243,6 +243,7 @@ impl Versioning {
 
         self.extension_updates(
             repository_versioning,
+            metadata,
             &shared_extensions,
             &mut managed_extensions,
         );
@@ -346,6 +347,7 @@ impl Versioning {
     fn extension_updates(
         &mut self,
         repository_versioning: &Versioning,
+        metadata: &mut Metadata,
         shared_extensions: &Vec<String>,
         managed_extensions: &mut ManagedExtensions,
     ) {
@@ -373,6 +375,26 @@ impl Versioning {
                         .unwrap()
                         .clone(),
                 );
+
+                let updated_extension = metadata
+                    .repositories
+                    .get_mut(
+                        env::var("REPOSITORY")
+                            .unwrap()
+                            .strip_prefix("paperback-community/")
+                            .unwrap(),
+                    )
+                    .unwrap()
+                    .extensions
+                    .get_mut(extension)
+                    .unwrap();
+
+                updated_extension
+                    .build_time
+                    .clone_from(&repository_versioning.build_time);
+                updated_extension
+                    .built_with
+                    .clone_from(&repository_versioning.built_with);
 
                 managed_extensions.push((extension.clone(), ManageTypes::Update, HashMap::new()));
             }
