@@ -173,14 +173,22 @@ fn extension_management(
 ) -> Result<(), ()> {
     for managed_extension in managed_extensions {
         let (repository, branch) = match managed_extension.1 {
-            ManageTypes::Deletion => (
-                &String::from("paperback-community/extensions"),
-                &String::from("master"),
-            ),
-            _ => (&env::var("REPOSITORY").unwrap(), &String::from("gh-pages")),
+            ManageTypes::Addition => {
+                info!("Adding extension: {}", managed_extension.0);
+                (&env::var("REPOSITORY").unwrap(), &String::from("gh-pages"))
+            }
+            ManageTypes::Update => {
+                info!("Updating extension: {}", managed_extension.0);
+                (&env::var("REPOSITORY").unwrap(), &String::from("gh-pages"))
+            }
+            ManageTypes::Deletion => {
+                info!("Deleting extension: {}", managed_extension.0);
+                (
+                    &String::from("paperback-community/extensions"),
+                    &String::from("master"),
+                )
+            }
         };
-
-        info!("Updating extension: {}", managed_extension.0);
 
         if managed_extension.1 == ManageTypes::Deletion {
             managed_extension.2.insert(
