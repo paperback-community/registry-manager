@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sorted the extensions alphabetically in both the versioning and metadata files (@celarye)
 - Prevented template extensions from getting added to the registry (@celarye)
 - Simplified repository keys in the metadata file (@celarye)
+- Reject extension additions which overwrite extensions from other repositories (@celarye)
 
 ### Bug Fixes
 
