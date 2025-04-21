@@ -289,6 +289,14 @@ impl Versioning {
                 continue;
             }
 
+            if self.sources.contains_key(extension) {
+                warn!(
+                    "The {} extension already exists in another repository, it must be removed from there before it can be added to a new one, ignoring it",
+                    extension
+                );
+                continue;
+            }
+
             if repository_versioning
                 .sources
                 .get(extension)
