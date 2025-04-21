@@ -6,26 +6,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No unreleased changes at this moment.
+
+## [v0.3.0] - 2025-04-21
+
 ### Features
 
-- Pretty print the versioning file (@celarye)
-- Added repository info to the commit message (@celarye)
-- Sorted the extensions alphabetically in both the versioning and metadata files (@celarye)
-- Prevented template extensions from getting added to the registry (@celarye)
-- Simplified repository keys in the metadata file (@celarye)
-- Reject extension additions which overwrite extensions from other repositories (@celarye)
-- The metadata file now updates on extension updates (@celarye)
-- Correctly log if extensions get added, updated or deleted (@celarye)
+- Pretty print the versioning file (#4, @celarye)
+- Added repository info to the commit message (#4, @celarye)
+- Sorted the extensions alphabetically in both the versioning and metadata files (#4, @celarye)
+- Prevented template extensions from getting added to the registry (#4, @celarye)
+- Simplified repository keys in the metadata file (#4, @celarye)
+- Reject extension additions which overwrite extensions from other repositories (#4, @celarye)
+- The metadata file now updates on extension updates (#4, @celarye)
+- Correctly log if extensions get added, updated or deleted (#4, @celarye)
 
 ### Bug Fixes
 
-- Fixed GitHub API file size limit issue with object fetching (@celarye)
-- Ensured that added extensions have valid semver versions (@celarye)
+- Fixed GitHub API file size limit issue with object fetching (#4, @celarye)
+- Ensured that added extensions have valid semver versions (#4, @celarye)
 
 ### Miscellaneous
 
-- Fixed a broken link in the changelog (@celarye)
-- Switched to Clippy (@celarye)
+- Fixed a broken link in the changelog (#4, @celarye)
+- Switched to Clippy (#4, @celarye)
 
 ## [v0.2.1] - 2025-03-10
 
@@ -62,7 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Issue templates (@Celarye)
 - GitHub support, security and contributing guidelines (@Celarye)
 
-[Unreleased]: https://github.com/paperback-community/registry-manager/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/paperback-community/registry-manager/compare/v0.3.0...HEAD
+[v0.3.0]: https://github.com/paperback-community/registry-manager/compare/v0.2.1...v0.3.0
 [v0.2.1]: https://github.com/paperback-community/registry-manager/compare/v0.2.0...v0.2.1
 [v0.2.0]: https://github.com/paperback-community/registry-manager/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/paperback-community/registry-manager/releases/tag/v0.1.0
